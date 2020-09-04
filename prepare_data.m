@@ -24,12 +24,22 @@ function [DATA,X,Y,NAME] = prepare_data(la1,la2,lo1,lo2,minnum,coastcode)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Load annual tide gauge data
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% dircur=pwd;
+% cd rlr_annual % switch to PSMSL annual data directory
+ % % The above directory was downloaded from www.psmsl.org/data/ 
+ % % See READ_ME.rtf and PSMSL website for more recent data
+ % data = readAnnual([dircur,'/rlr_annual/']);
+% cd ..
+% BZ setup
 dircur=pwd;
-cd rlr_annual % switch to PSMSL annual data directory
+dircode = '/Users/bb/Software_SL/bayesRSL_git';
+dirdata = '/Volumes/BB_1TB/data/Sea_Level/Bayes_Piecuch/rlr_annual';
+cd (dirdata); % switch to PSMSL annual data directory
  % The above directory was downloaded from www.psmsl.org/data/ 
  % See READ_ME.rtf and PSMSL website for more recent data
- data = readAnnual([dircur,'/rlr_annual/']);
-cd ..
+ 
+data = readAnnual(dirdata);
+cd (dircode);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Delete empty entries in database or records not along specified

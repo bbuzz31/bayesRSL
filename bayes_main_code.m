@@ -11,7 +11,12 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Code written by CGP 2017/02/2017
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function bayes_main_code(save_tag,NN_burn,NN_post,thin_period)
+% function bayes_main_code(save_tag,NN_burn,NN_post,thin_period)
+% function bayes_main_code
+save_tag = 1;
+NN_burn  = 100000;
+NN_post  = 100000;
+thin_period = 100;
 mu=[];
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -46,8 +51,9 @@ M=sum(sum(~isnan(DATA'))~=0); % number of locations with at least one datum
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Set the seeds of the random number generators
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-randn('state', sum((1000+600)*clock))
-rand('state', sum((1000+800)*clock))
+% randn('state', sum((1000+600)*clock))
+% rand('state', sum((1000+800)*clock))
+rng(10);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Allocate space for the sample arrays
@@ -117,7 +123,9 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     	invSig*(r*y(:,K-1)+(T(K)-r*T(K-1))*b);
     PSI_Y_K=(1/delta_2*selection_matrix(K).H'*selection_matrix(K).H+invSig)^(-1);
     y(:,K)=mvnrnd(PSI_Y_K*V_Y_K,PSI_Y_K)';
+    return
     clear V_Y_K PSI_Y_K   
+    
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Sample from p(y_k|.)
