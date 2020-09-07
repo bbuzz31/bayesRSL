@@ -3,8 +3,12 @@
 % Delete warm-up iterations from solutions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Code written by CGP 2017/02/2017
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% MU(1:5)
+% MU(end-5:end)
 MU(1:NN_burn_thin)=[];
+% MU(1:5)
+% MU(end-5:end)
+
 NU(1:NN_burn_thin)=[];
 PI_2(1:NN_burn_thin)=[];
 DELTA_2(1:NN_burn_thin)=[];
