@@ -53,18 +53,19 @@ class BayesRSL(BZ.bzBase):
                 self.log.info('%s of %s iterations in %.2f seconds', nn, NN, elap)
                 t_int = time.time()
 
-            nn_thin = int(np.ceil(nn/thin_period))
+            nn_thin = int(np.floor(nn/thin_period))
             ####################################################################
             # Define matrices to save time
             ####################################################################
             BMat    = self.pi_2*np.eye(*self.D.shape)
             invBmat = np.linalg.inv(BMat)
-            Sig     = self.sigma_2*np.exp(-self.phi*self.D)
+            Sig     = self.sigma_2*np.exp(-self.phi*self.D) # Eq: S1
             invSig  = np.linalg.inv(Sig)
 
             ####################################################################
             # Sample from p(y_K|.)
             ####################################################################
+            import ipdb
             V_Y_K   = (1/self.delta_2) * (self.dct_sel['H'][K].T @ \
                       (self.dct_z[K] - self.dct_sel['F'][K] @ self.l)) + \
                       invSig@(self.r * self.y[:, K-1] + (T[K] - self.r * T[K-1]) * self.b)
@@ -93,10 +94,11 @@ class BayesRSL(BZ.bzBase):
 
                 PSI_Y_k = np.linalg.inv(1/self.delta_2*self.dct_sel['H'][kk].T @ \
                                     self.dct_sel['H'][kk]+(1+self.r**2)*invSig)
-## maybe usefuls                                    
+## maybe usefuls
 # https://d18ky98rnyall9.cloudfront.net/_b61afa153ec709baba0ccdc7e62fb806_L12_background.pdf?Expires=1599523200&Signature=j~SATZe1swXUE38vhAWI-vL6~uOGPXzU0JCWdGgnGNsSpE2QJpDS-rV3BAJim9d1Q8EHOHrPtdl6Cp85bJOCz5nl1hwnFW7Hv2oaQ3onULPZjwVlBHF3RFsUZcc0ia0C3OkD39wIwUdQEYB35D2cRfbBtqQavqo1wCInz31h7OI_&Key-Pair-Id=APKAJLTNE6QMUY6HBC5A
                 self.y[:, kk] = np.random.multivariate_normal(PSI_Y_k@V_Y_k, PSI_Y_k).T
             # self.y  = loadmat(op.join(self.path_mdat, 'y'))['y']
+            ipdb.set_trace()
 
             ####################################################################
             # Sample from p(y_0|.)
@@ -350,6 +352,7 @@ class BayesRSL(BZ.bzBase):
 
         # variance parameters # use min to prevent needlessly large values
         self.pi_2    = np.min([1, 1/np.random.gamma(self.HP['lambda_tilde_pi_2'], 1/self.HP['nu_tilde_pi_2'])])
+        # would appear to be a spike...
         self.delta_2 = np.min([1, 1/np.random.gamma(self.HP['lambda_tilde_delta_2'], 1/self.HP['nu_tilde_delta_2'])])
         self.sigma_2 = np.min([1, 1/np.random.gamma(self.HP['lambda_tilde_sigma_2'], 1/self.HP['nu_tilde_sigma_2'])])
         self.tau_2   = np.min([1, 1/np.random.gamma(self.HP['lambda_tilde_tau_2'], 1/self.HP['nu_tilde_tau_2'])])

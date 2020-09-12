@@ -49,37 +49,78 @@ class BayesRSL(BZ.bzBase):
         st, t_int = time.time(), time.time() # for logging
         NN    = NN_burn + NN_post
         for nn in np.arange(NN):
-            if nn % 50 == 0 and not nn == 0:
-                elap  = time.time() - t_int
-                self.log.info('%s of %s iterations in %.2f seconds', nn, NN, elap)
-                t_int = time.time()
+            if nn == 2:
+                import ipdb
+                from numpy import mean
+                print (f'Step:',nn, 'y:', y.mean())
+                print (f'Step:',nn, 'y0:', y0.mean())
+                print (f'Step:',nn, 'b:', b.mean())
+                print (f'Step:',nn, 'mu:', mu)
+                print (f'Step:',nn, 'pi2:', pi_2)
+                print (f'Step:',nn, 'delta2', delta_2)
+                print (f'Step:',nn, 'r:', r)
+                print (f'Step:',nn, 'sigma2:', sigma_2)
+                print (f'Step:',nn, 'phi:', y.mean())
+                print (f'Step:',nn, 'l:', l.mean())
+                print (f'Step:',nn, 'nu:', nu)
+                print (f'Step:',nn, 'tau2:', tau_2)
+                ipdb.set_trace()
+
+            if nn % 100 == 0 and not nn == 0:
+                print (nn)
+            #     elap  = time.time() - t_int
+            #     self.log.info('%s of %s iterations in %.2f seconds', nn, NN, elap)
+            #     t_int = time.time()
 
             nn_thin = int(np.floor(nn/thin_period))
             ####################################################################
             # Define matrices to save time
             ####################################################################
+            # pi_2    = 1.528579081496371e-07 #mlab, step 20
+            # sigma_2 = 5.906009002191849e-04 #mlab, step 20
+            # phi     = 0.003041211145683
+
             BMat    = pi_2*np.eye(*self.D.shape)
             invBmat = np.linalg.inv(BMat)
+            # if nn == 15:
+                # print (phi, sigma_2, delta_2)
+                # phi     = 0.0032
+                # sigma_2 = 6.2300e-04
+                # delta_2 = 3.0899e-05
+                # return
             Sig     = sigma_2*np.exp(-phi*self.D)
             invSig  = np.linalg.inv(Sig)
 
             ####################################################################
             # Sample from p(y_K|.)
             ####################################################################
+            # delta_2 = 2.770692212259742e-05
+            # r       = 0.988291166084029
+            # b  = loadmat(op.join(self.path_mdat, 'bl2'))['b'].squeeze() # mlab
+            # l  = loadmat(op.join(self.path_mdat, 'bl2'))['l'].squeeze() # mlab
+
             K       = self.K-1
             V_Y_K   = (1/delta_2) * (sel_mat_H[K].T @ (dct_z[K] - sel_mat_F[K] @ l)) + \
                                   invSig@(r * y[:, K-1] + (T[K] - r * T[K-1]) * b)
 
-            PSI_Y_K = (1/delta_2*sel_mat_H[K].T @ sel_mat_H[K] + invSig)
+            PSI_Y_K = (1/delta_2) * sel_mat_H[K].T @ sel_mat_H[K] + invSig
+            # print (f'a {np.min(PSI_Y_K)}, {np.max(PSI_Y_K):.3f}')
             PSI_Y_K = np.linalg.matrix_power(PSI_Y_K, -1)
+            # print ('b', np.min(PSI_Y_K), np.max(PSI_Y_K))
+            # print (PSI_Y_K.T[:3,:3])
+
             y[:, K] = np.random.multivariate_normal(PSI_Y_K@V_Y_K, PSI_Y_K).T
 
-            ## use the values from matlabs random generator
+            ## use the values from matlabs random generator; can skip and get them enxt
             # y[:, K] = matlab_for_python.y_K
-
+            # y  = loadmat(op.join(self.path_mdat, 'y'))['y'] # mlab
             ####################################################################
             # Sample from p(y_k|.)
             ####################################################################
+            # import ipdb
+            # b = matlab_for_python.b
+            # l = matlab_for_python.l
+            # y0 = matlab_for_python.y0
             for kk in range(K-1, -1, -1):
                 if kk == 0:
                     V_Y_k = 1/delta_2 * (sel_mat_H[kk].T @ (dct_z[kk] - sel_mat_F[kk]@l)) + \
@@ -94,8 +135,11 @@ class BayesRSL(BZ.bzBase):
                 PSI_Y_k = np.linalg.inv(1/delta_2*sel_mat_H[kk].T @ \
                                     sel_mat_H[kk]+(1+r**2)*invSig)
 
+                # min_eig = np.min(np.real(np.linalg.eigvals(PSI_Y_k)))
+
                 y[:, kk] = np.random.multivariate_normal(PSI_Y_k@V_Y_k, PSI_Y_k).T
-            y  = loadmat(op.join(self.path_mdat, 'y'))['y'] # mlab
+
+            # y  = loadmat(op.join(self.path_mdat, 'y1'))['y'] # mlab
 
             ####################################################################
             # Sample from p(y0|.)
@@ -104,13 +148,14 @@ class BayesRSL(BZ.bzBase):
                                            + invSig@(r*(y[:,0])-r*(T[0]-r*T0)*b)
             PSI_Y_0 = np.linalg.inv(1/HP['delta_tilde_y0_2'] * self.I_N + r**2 * invSig)
 
-            y0 = np.random.multivariate_normal(PSI_Y_0@V_Y_0, PSI_Y_0).T
-            y0 = loadmat(op.join(self.path_mdat, 'y_0'))['y_0'].squeeze()
+            y0      = np.random.multivariate_normal(PSI_Y_0@V_Y_0, PSI_Y_0).T
+            # y0 = loadmat(op.join(self.path_mdat, 'y_0'))['y_0'].squeeze() # mlab
 
             ####################################################################
             # Sample from p(b|.)
             ####################################################################
             SUM_K = self.ZERO_N
+            # mu = 0.006894440462913 #mlab
             for kk in range(self.K):
                 if kk == 0:
                     SUM_K += (T[0] - r * T0) * (y[:,kk] - r * y0)
@@ -121,16 +166,15 @@ class BayesRSL(BZ.bzBase):
             PSI_B = np.linalg.inv(invBmat + invSig * np.sum((T - r*tt)**2))
             b     = np.random.multivariate_normal(PSI_B@V_B, PSI_B).T
             # b     = b[..., np.newaxis] # force for linalg later; NOT NEEDED
-            b     = loadmat(op.join(self.path_mdat, 'b'))['b'].squeeze() # mlab
+            # b     = loadmat(op.join(self.path_mdat, 'b'))['b'].squeeze() # mlab
 
             ####################################################################
             # Sample from p(mu|.)
             ####################################################################
-            V_MU = HP['eta_tilde_mu']/HP['delta_tilde_mu_2'] + (self.ONE_N.T @ invBmat @ b)
-            PSI_MU=1/(1/HP['delta_tilde_mu_2'] + self.ONE_N.T @ invBmat @ self.ONE_N)
-
-            mu = np.random.normal(PSI_MU*V_MU, np.sqrt(PSI_MU))
-            mu = 0.006443022461383 # mlab
+            V_MU   = HP['eta_tilde_mu']/HP['delta_tilde_mu_2'] + (self.ONE_N.T @ invBmat @ b)
+            PSI_MU = 1/(1/HP['delta_tilde_mu_2'] + self.ONE_N.T @ invBmat @ self.ONE_N)
+            mu     = np.random.normal(PSI_MU*V_MU, np.sqrt(PSI_MU))
+            # mu = 0.006443022461383 # mlab
 
             ####################################################################
             # Sample from p(pi_2|.)
@@ -140,7 +184,6 @@ class BayesRSL(BZ.bzBase):
                                     b - mu * self.ONE_N, rcond=-1)[0]
             inside2 = 1/2 * soln @  (b - mu * self.ONE_N)
             pi_2    = 1/np.random.gamma(HP['lambda_tilde_pi_2']+inside1, 1/(HP['nu_tilde_pi_2']+inside2))
-            pi_2    = 1.104351976140426e-06 # mlab
 
             ####################################################################
             # Sample from p(delta_2|.)
@@ -150,7 +193,7 @@ class BayesRSL(BZ.bzBase):
                 xxx    = dct_z[kk] - sel_mat_H[kk] @ y[:, kk] - sel_mat_F[kk] @ l
                 SUM_K += (xxx.T @ xxx)
             delta_2 = 1/np.random.gamma(HP['lambda_tilde_delta_2'] + 0.5*self.M_k.sum(), 1/(HP['nu_tilde_delta_2']+0.5*SUM_K))
-            delta_2 = 2.719951966190159e-04 # mlab
+            # delta_2 = 2.719951966190159e-04 # mlab
 
             ####################################################################
             # Sample from p(r|.)
@@ -168,23 +211,27 @@ class BayesRSL(BZ.bzBase):
             while dummy:
                 sample = np.random.normal(PSI_R * V_R, np.sqrt(PSI_R))
                 if HP['u_tilde_r'] < sample < HP['v_tilde_r']:
-                    # r     = sample
-                    r     = 0.957674212154219 # mlab
+                    r     = sample
+                    # r     = 0.957674212154219 # mlab
                     dummy = 0
 
             ####################################################################
             # Sample from p(sigma_2|.)
             ####################################################################
+            # phi = 3.4538e-04
             RE, SUM_K = np.exp(-phi * self.D), 0
             invRE     = np.linalg.lstsq(RE, self.I_N, rcond=-1)[0]
+
             for kk in range(self.K):
                 if kk == 0:
                     DYKK = y[:, kk] - r * y0 - (T[kk] - r * T0) * b
                 else:
                     DYKK   = y[:, kk] - r * y[:, kk-1] - (T[kk] - r * T[kk-1]) * b
+
                 SUM_K += DYKK.T @ invRE @ DYKK
-            sigma_2 = 1/np.random.gamma((HP['lambda_tilde_sigma_2']+self.N*self.K/2), 1/(HP['nu_tilde_sigma_2']+0.5*SUM_K))
-            sigma_2 = 0.002204008033078 # mlab
+            sigma_2 = 1/np.random.gamma((HP['lambda_tilde_sigma_2']+(self.N*self.K/2)), 1/(HP['nu_tilde_sigma_2']+(0.5*SUM_K)))#.squeeze()
+            # sigma_2 = 0.002204008033078 # mlab
+
 
             ####################################################################
             # Sample from p(phi|.)
@@ -192,7 +239,7 @@ class BayesRSL(BZ.bzBase):
             Phi_now  = np.log(phi)
             Phi_std  = 0.05
             Phi_prp  = np.random.normal(Phi_now, Phi_std)
-            Phi_prp  = -5.589928909836823 # mlab
+            # Phi_prp  = -5.589928909836823 # mlab
             R_now    = np.exp(-np.exp(Phi_now)*self.D)
             R_prp    = np.exp(-np.exp(Phi_prp)*self.D)
             invR_now = np.linalg.inv(R_now)
@@ -219,15 +266,16 @@ class BayesRSL(BZ.bzBase):
             ####################################################################
             # Sample from p(l|.)
             ####################################################################
-            SUM_K1, SUM_K2 = self.ZERO_M, np.zeros([self.M, self.M])
+            SUM_K1, SUM_K2 = self.ZERO_M.copy(), np.zeros([self.M, self.M])
             for kk in range(self.K):
-                SUM_K1 += sel_mat_F[kk].T @ (dct_z[kk]-sel_mat_H[kk] @ y[:,kk])
-                SUM_K2 += sel_mat_F[kk].T @ sel_mat_F[kk]
+                SUM_K1 += (sel_mat_F[kk].T @ (dct_z[kk]-sel_mat_H[kk] @ y[:,kk]))
+                SUM_K2 += (sel_mat_F[kk].T @ sel_mat_F[kk])
+
             V_L   = nu / tau_2 * self.ONE_M + 1/delta_2 * SUM_K1
             PSI_L = np.linalg.inv(1 / tau_2 * self.I_M + 1/delta_2 * SUM_K2)
 
             l  = np.random.multivariate_normal(PSI_L@V_L, PSI_L).T
-            l  = loadmat(op.join(self.path_mdat, 'l'))['l'].squeeze() # mlab
+            # l  = loadmat(op.join(self.path_mdat, 'l'))['l'].squeeze() # mlab
 
             ####################################################################
             # Sample from p(nu|.)
@@ -235,14 +283,13 @@ class BayesRSL(BZ.bzBase):
             V_NU = HP['eta_tilde_nu'] / HP['delta_tilde_nu_2'] + (1/tau_2 * (self.ONE_M.T @ l))
             PSI_NU = (1/HP['delta_tilde_nu_2'] + self.M / tau_2) ** -1
             nu     = np.random.normal(PSI_NU * V_NU, np.sqrt(PSI_NU))
-            nu     = 6.449444987285013 # mlab
+            # nu     = 6.449444987285013 # mlab
 
             ####################################################################
             # Sample from p(tau_2|.)
             ####################################################################
             tau_2 = 1/np.random.gamma(HP['lambda_tilde_tau_2'] + self.M / 2,
                     1/(HP['nu_tilde_tau_2'] + 0.5*(((l-nu*self.ONE_M).T) @ (l-nu*self.ONE_M))))
-            return
 
             ####################################################################
             # Now update arrays
@@ -257,7 +304,7 @@ class BayesRSL(BZ.bzBase):
             self.B[nn_thin,:]   = b
             self.L[nn_thin,:]   = l
             self.R[nn_thin]     = r
-            self.Y_0[nn_thin,:] = y0
+            self.Y0[nn_thin,:] = y0
             self.Y[nn_thin,:,:] = y.T
 
         ##################################
@@ -269,7 +316,7 @@ class BayesRSL(BZ.bzBase):
         # save output
         #############
         arrs2save = [self.MU, self.NU, self.PI_2, self.DELTA_2, self.SIGMA_2, self.TAU_2,
-                     self.PHI, self.B, self.L, self.R, self.Y_0, self.Y, self.tg_data, self.N, self.K, self.D]
+                     self.PHI, self.B, self.L, self.R, self.Y0, self.Y, self.tg_data, self.N, self.K, self.D]
         self.save_data(arrs2save, HP, save_tag=0)
         return
 
@@ -357,9 +404,9 @@ class BayesRSL(BZ.bzBase):
         phi = np.exp(np.random.normal(HP['eta_tilde_phi'],np.sqrt(HP['delta_tilde_phi_2'])))
 
         ## temporarily overwriting to match piecuch
-        self.log.debug('Using piecuch initial vals')
-        mu, nu, pi_2, delta_2 =  0.009920200483713,  6.441041342905075, 1.247199778877984e-6, 9.476780305002085e-5 # mlab
-        sigma_2, tau_2, phi   = 0.001611436140762, 0.001773953960155, 0.003665877783146 # mlab
+        # self.log.debug('Using piecuch initial vals')
+        # mu, nu, pi_2, delta_2 =  0.009920200483713,  6.441041342905075, 1.247199778877984e-6, 9.476780305002085e-5 # mlab
+        # sigma_2, tau_2, phi   = 0.001611436140762, 0.001773953960155, 0.003665877783146 # mlab
 
         # spatial fields
         b  = np.random.multivariate_normal(mu*np.ones(self.N), pi_2*np.eye(self.N))
@@ -373,9 +420,9 @@ class BayesRSL(BZ.bzBase):
         y   = np.zeros([self.N,self.K])
 
         ## overwriting again;
-        matdat = loadmat(op.join(self.path_mdat, 'BL'))
-        b, l = matdat['b'].squeeze(), matdat['l'].squeeze() # mlab
-        r    = 0.495048630882454 # mlab
+        # matdat = loadmat(op.join(self.path_mdat, 'BL'))
+        # b, l = matdat['b'].squeeze(), matdat['l'].squeeze() # mlab
+        # r    = 0.495048630882454 # mlab
 
         return y, y0, mu, nu, pi_2, delta_2, sigma_2, tau_2, phi, b, l, r
 

@@ -54,7 +54,7 @@ M=sum(sum(~isnan(DATA'))~=0); % number of locations with at least one datum
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % randn('state', sum((1000+600)*clock))
 % rand('state', sum((1000+800)*clock))
-rng(10);
+rng(150);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Allocate space for the sample arrays
@@ -109,7 +109,23 @@ tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' iterations done.']), tic, end
     nn_thin=[]; nn_thin=ceil(nn/thin_period);
-
+    if nn==3 | nn == 2
+      disp(['nn ', num2str(nn-1), ' y: ', num2str(mean2(y))])
+      disp(['nn ', num2str(nn-1), ' y0: ', num2str(mean2(y_0))])
+      disp(['nn ', num2str(nn-1), ' b: ', num2str(mean2(b))])
+      disp(['nn ', num2str(nn-1), ' mu: ', num2str(mu)])
+      disp(['nn ', num2str(nn-1), ' pi2: ', num2str(pi_2)])
+      disp(['nn ', num2str(nn-1), ' delta2: ', num2str(delta_2)])
+      disp(['nn ', num2str(nn-1), ' r: ', num2str(r)])
+      disp(['nn ', num2str(nn-1), ' sigma2: ', num2str(sigma_2)])
+      disp(['nn ', num2str(nn-1), ' phi: ', num2str(phi)])
+      disp(['nn ', num2str(nn-1), ' l: ', num2str(mean2(l))])
+      disp(['nn ', num2str(nn-1), ' nu: ', num2str(nu)])
+      disp(['nn ', num2str(nn-1), ' tau2: ', num2str(tau_2)])
+       if nn == 3
+        return
+       end
+    end
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Define matrices to save time
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -122,10 +138,16 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     V_Y_K=[]; PSI_Y_K=[];
     V_Y_K=delta_2^(-1)*(selection_matrix(K).H'*(Z(K).z-selection_matrix(K).F*(l)))+...
     	invSig*(r*y(:,K-1)+(T(K)-r*T(K-1))*b);
+%     disp(min(min((1/delta_2*selection_matrix(K).H'*selection_matrix(K).H+invSig))))
+%     disp(max(max((1/delta_2*selection_matrix(K).H'*selection_matrix(K).H+invSig))))
     PSI_Y_K=(1/delta_2*selection_matrix(K).H'*selection_matrix(K).H+invSig)^(-1);
-
+%     disp(min(min(PSI_Y_K)))
+%     disp(max(max(PSI_Y_K)))
     y(:,K)=mvnrnd(PSI_Y_K*V_Y_K,PSI_Y_K)'; % dont bother saving for python; full is saved later
-    clear V_Y_K PSI_Y_K
+
+%     clear V_Y_K PSI_Y_K
+%      save(fullfile(shared_datdir, 'y'), 'y');
+%     save(fullfile(shared_datdir, 'y'), 'y');
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Sample from p(y_k|.)
@@ -139,13 +161,13 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
         else
          	V_Y_k=1/delta_2*(selection_matrix(kk).H'*(Z(kk).z-selection_matrix(kk).F*(l)))+...
             	invSig*(r*(y(:,kk-1)+y(:,kk+1))+(1+r^2)*T(kk)*b-r*(T(kk-1)+T(kk+1))*b);
+
         end
        	PSI_Y_k=inv(1/delta_2*selection_matrix(kk).H'*selection_matrix(kk).H+(1+r^2)*invSig);
 
        	y(:,kk)=mvnrnd(PSI_Y_k*V_Y_k,PSI_Y_k)';
-        save(fullfile(shared_datdir, 'y'), 'y');
-      	clear V_Y_k PSI_Y_k
 
+%       	clear V_Y_k PSI_Y_k
     end
 
 
@@ -155,10 +177,10 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     V_Y_0=[]; PSI_Y_0=[];
     V_Y_0=(HP.eta_tilde_y_0/HP.delta_tilde_y_0_2)*ONE_N+invSig*(r*y(:,1)-r*(T(1)-r*T0)*b);
     PSI_Y_0=inv(1/HP.delta_tilde_y_0_2*I_N+r^2*invSig);
-
     y_0=mvnrnd(PSI_Y_0*V_Y_0,PSI_Y_0)';
 %     save(fullfile(shared_datdir, 'y_0'), 'y_0');
-    clear V_Y_0 PSI_Y_0
+
+%     clear V_Y_0 PSI_Y_0
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Sample from p(b|.)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -174,9 +196,11 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
 
     PSI_B=inv(invBMat+invSig*sum((T-r*[T0 T(1:K-1)]).^2));
     b=mvnrnd(PSI_B*V_B,PSI_B)';
-    clear V_B PSI_B SUM_K
-%     save(fullfile(shared_datdir, 'b'), 'b');
 
+    clear V_B PSI_B SUM_K
+%     if nn==8
+%         save(fullfile(shared_datdir, 'b'), 'b');
+%     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Sample from p(mu|.)
@@ -184,7 +208,9 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     V_MU=[]; PSI_MU=[];
     V_MU=HP.eta_tilde_mu/HP.delta_tilde_mu_2+ONE_N'*invBMat*b;
    	PSI_MU=inv(1/HP.delta_tilde_mu_2+ONE_N'*invBMat*ONE_N);
+
     mu=normrnd(PSI_MU*V_MU,sqrt(PSI_MU));
+
     clear V_MU PSI_MU
 
 
@@ -199,7 +225,6 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
       	(HP.lambda_tilde_pi_2+inside1)], [1,1]);
    	clear inside*
 
-
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Sample from p(delta_2|.)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -208,10 +233,9 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
       	xxx=[]; xxx=(Z(kk).z-selection_matrix(kk).H*y(:,kk)-selection_matrix(kk).F*(l));
       	SUM_K=SUM_K+xxx'*xxx;
     end
-    
     delta_2=1/randraw('gamma', [0,1/(HP.nu_tilde_delta_2+1/2*SUM_K),...
      	(HP.lambda_tilde_delta_2+1/2*sum(M_k))], [1,1]);
-    
+
     clear SUM_K
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -222,14 +246,13 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
      	if kk==1
          	V_R=V_R+((y_0-b*T0)')*invSig*(y(:,1)-b*T(1));
          	PSI_R=PSI_R+((y_0-b*T0)')*invSig*(y_0-b*T0);
-            
+
         else
          	V_R=V_R+((y(:,kk-1)-b*T(kk-1))')*invSig*(y(:,kk)-b*T(kk));
           	PSI_R=PSI_R+((y(:,kk-1)-b*T(kk-1))')*invSig*(y(:,kk-1)-b*T(kk-1));
         end
     end
     PSI_R=inv(PSI_R);
-    
     dummy=1;
     while dummy
       	sample=normrnd(PSI_R*V_R,sqrt(PSI_R));
@@ -247,7 +270,7 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     RE=[]; invRE=[]; SUM_K=0;
     RE=exp(-phi*D);
    	invRE=I_N/RE;
-    
+
     for kk=1:K
      	if kk==1
          	DYKK=[];
@@ -258,8 +281,11 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
            	DYKK=y(:,kk)-r*y(:,kk-1)-(T(kk)-r*T(kk-1))*b;
          	SUM_K=SUM_K+(DYKK')*invRE*DYKK;
         end
+
     end
- 
+%     disp('sumk')
+%     disp(SUM_K)
+
    	sigma_2=1/randraw('gamma', [0,1/(HP.nu_tilde_sigma_2+1/2*SUM_K),...
      	(HP.lambda_tilde_sigma_2+N*K/2)], [1,1]);
 
@@ -277,7 +303,7 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     invR_prp=inv(R_prp);
     sumk_now=0;
     sumk_prp=0;
-    
+
    	for kk=1:K
       	if kk==1
          	DYYK=y(:,1)-r*y_0-(T(1)-r*T0)*b;
@@ -289,17 +315,16 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
          	sumk_prp=sumk_prp+(DYYK')*invR_prp*DYYK;
         end
     end
-    
+
  	ins_now=-1/(2*HP.delta_tilde_phi_2)*(Phi_now-HP.eta_tilde_phi)^2-1/(2*sigma_2)*sumk_now;
    	ins_prp=-1/(2*HP.delta_tilde_phi_2)*(Phi_prp-HP.eta_tilde_phi)^2-1/(2*sigma_2)*sumk_prp;
   	MetFrac=det(R_prp*invR_now)^(-K/2)*exp(ins_prp-ins_now);
    	success_rate=min(1,MetFrac);
-    
+
    	if rand(1)<=success_rate
      	Phi_now=Phi_prp;
     end
   	phi=exp(Phi_now);
-    
   	clear phi_now phi_std phi_prp mat_now mat_prp inside sumk MetFrac success_rate
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -308,20 +333,36 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     V_L=[]; PSI_L=[]; SUM_K1=ZERO_M; SUM_K2=zeros(M,M);
     for kk=1:K
      	SUM_K1=SUM_K1+(selection_matrix(kk).F')*(Z(kk).z-selection_matrix(kk).H*y(:,kk));
-        SUM_K2=SUM_K2+(selection_matrix(kk).F')*selection_matrix(kk).F;
+      SUM_K2=SUM_K2+(selection_matrix(kk).F')*selection_matrix(kk).F;
     end
+    % disp(['\tSUM K1', num2str(mean2(SUM_K1))])
+    % disp(['\tSUM K2', num2str(mean2(SUM_K2))])
+    save(fullfile(shared_datdir, 'y'), 'y');
+    save(fullfile(shared_datdir, 'sumk1'), 'y');
+    save(fullfile(shared_datdir, 'sumk2'), 'y');
+
     V_L=nu/tau_2*ONE_M+1/delta_2*SUM_K1;
     PSI_L=inv(1/tau_2*I_M+1/delta_2*SUM_K2);
+    mean2(PSI_L*V_L)
+    mean2(PSI_L)
+
     l=mvnrnd(PSI_L*V_L,PSI_L)';
-    
+    if nn==2
+        save(fullfile(shared_datdir, 'y'), 'y');
+        save(fullfile(shared_datdir, 'sumk1'), 'SUM_K1');
+        save(fullfile(shared_datdir, 'sumk2'), 'SUM_K2');
+        return
+    end
+
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Sample from p(nu|.)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     V_NU=[]; PSI_NU=[];
    	V_NU=HP.eta_tilde_nu/HP.delta_tilde_nu_2+1/tau_2*(ONE_M'*l);
     PSI_NU=inv(1/HP.delta_tilde_nu_2+M/tau_2);
+
     nu=normrnd(PSI_NU*V_NU,sqrt(PSI_NU));
-    
+
     clear V_NU PSI_NU
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -329,7 +370,7 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     tau_2=1/randraw('gamma', [0,1/(HP.nu_tilde_tau_2+...
      	1/2*(((l-nu*ONE_M)')*(l-nu*ONE_M))),(HP.lambda_tilde_tau_2+M/2)], [1,1]);
-    
+
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Now update arrays
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
