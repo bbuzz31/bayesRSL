@@ -109,23 +109,7 @@ tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' iterations done.']), tic, end
     nn_thin=[]; nn_thin=ceil(nn/thin_period);
-    if nn==3 | nn == 2
-      disp(['nn ', num2str(nn-1), ' y: ', num2str(mean2(y))])
-      disp(['nn ', num2str(nn-1), ' y0: ', num2str(mean2(y_0))])
-      disp(['nn ', num2str(nn-1), ' b: ', num2str(mean2(b))])
-      disp(['nn ', num2str(nn-1), ' mu: ', num2str(mu)])
-      disp(['nn ', num2str(nn-1), ' pi2: ', num2str(pi_2)])
-      disp(['nn ', num2str(nn-1), ' delta2: ', num2str(delta_2)])
-      disp(['nn ', num2str(nn-1), ' r: ', num2str(r)])
-      disp(['nn ', num2str(nn-1), ' sigma2: ', num2str(sigma_2)])
-      disp(['nn ', num2str(nn-1), ' phi: ', num2str(phi)])
-      disp(['nn ', num2str(nn-1), ' l: ', num2str(mean2(l))])
-      disp(['nn ', num2str(nn-1), ' nu: ', num2str(nu)])
-      disp(['nn ', num2str(nn-1), ' tau2: ', num2str(tau_2)])
-       if nn == 3
-        return
-       end
-    end
+
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Define matrices to save time
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -138,16 +122,8 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     V_Y_K=[]; PSI_Y_K=[];
     V_Y_K=delta_2^(-1)*(selection_matrix(K).H'*(Z(K).z-selection_matrix(K).F*(l)))+...
     	invSig*(r*y(:,K-1)+(T(K)-r*T(K-1))*b);
-%     disp(min(min((1/delta_2*selection_matrix(K).H'*selection_matrix(K).H+invSig))))
-%     disp(max(max((1/delta_2*selection_matrix(K).H'*selection_matrix(K).H+invSig))))
     PSI_Y_K=(1/delta_2*selection_matrix(K).H'*selection_matrix(K).H+invSig)^(-1);
-%     disp(min(min(PSI_Y_K)))
-%     disp(max(max(PSI_Y_K)))
     y(:,K)=mvnrnd(PSI_Y_K*V_Y_K,PSI_Y_K)'; % dont bother saving for python; full is saved later
-
-%     clear V_Y_K PSI_Y_K
-%      save(fullfile(shared_datdir, 'y'), 'y');
-%     save(fullfile(shared_datdir, 'y'), 'y');
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Sample from p(y_k|.)
@@ -167,7 +143,7 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
 
        	y(:,kk)=mvnrnd(PSI_Y_k*V_Y_k,PSI_Y_k)';
 
-%       	clear V_Y_k PSI_Y_k
+      	clear V_Y_k PSI_Y_k
     end
 
 
@@ -178,9 +154,8 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     V_Y_0=(HP.eta_tilde_y_0/HP.delta_tilde_y_0_2)*ONE_N+invSig*(r*y(:,1)-r*(T(1)-r*T0)*b);
     PSI_Y_0=inv(1/HP.delta_tilde_y_0_2*I_N+r^2*invSig);
     y_0=mvnrnd(PSI_Y_0*V_Y_0,PSI_Y_0)';
-%     save(fullfile(shared_datdir, 'y_0'), 'y_0');
 
-%     clear V_Y_0 PSI_Y_0
+    clear V_Y_0 PSI_Y_0
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Sample from p(b|.)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -198,9 +173,6 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     b=mvnrnd(PSI_B*V_B,PSI_B)';
 
     clear V_B PSI_B SUM_K
-%     if nn==8
-%         save(fullfile(shared_datdir, 'b'), 'b');
-%     end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Sample from p(mu|.)
@@ -283,8 +255,6 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
         end
 
     end
-%     disp('sumk')
-%     disp(SUM_K)
 
    	sigma_2=1/randraw('gamma', [0,1/(HP.nu_tilde_sigma_2+1/2*SUM_K),...
      	(HP.lambda_tilde_sigma_2+N*K/2)], [1,1]);
@@ -335,24 +305,10 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
      	SUM_K1=SUM_K1+(selection_matrix(kk).F')*(Z(kk).z-selection_matrix(kk).H*y(:,kk));
       SUM_K2=SUM_K2+(selection_matrix(kk).F')*selection_matrix(kk).F;
     end
-    % disp(['\tSUM K1', num2str(mean2(SUM_K1))])
-    % disp(['\tSUM K2', num2str(mean2(SUM_K2))])
-    save(fullfile(shared_datdir, 'y'), 'y');
-    save(fullfile(shared_datdir, 'sumk1'), 'y');
-    save(fullfile(shared_datdir, 'sumk2'), 'y');
-
     V_L=nu/tau_2*ONE_M+1/delta_2*SUM_K1;
     PSI_L=inv(1/tau_2*I_M+1/delta_2*SUM_K2);
-    mean2(PSI_L*V_L)
-    mean2(PSI_L)
 
     l=mvnrnd(PSI_L*V_L,PSI_L)';
-    if nn==2
-        save(fullfile(shared_datdir, 'y'), 'y');
-        save(fullfile(shared_datdir, 'sumk1'), 'SUM_K1');
-        save(fullfile(shared_datdir, 'sumk2'), 'SUM_K2');
-        return
-    end
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % Sample from p(nu|.)
