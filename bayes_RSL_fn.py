@@ -13,10 +13,9 @@ class BayesRSL(BZ.bzBase):
         self.log.setLevel('DEBUG')
         np.random.seed(10)
         self.path_mdat = op.join(self.path_Brsl, 'shared_data')
-        self.tg_data   = loadmat(op.join(self.path_mdat, 'DATA.mat'))['DATA']
+        self.tg_data, self.D = LoadTGs()(False)
         self.N, self.K = self.tg_data.shape
         self.M         = np.sum(~np.isnan(self.tg_data).all(1)) # # of tgs with >0 datums
-        self.D         = LoadTGs()(False) # just distance matrix for now
 
     def __call__(self, NN_burn=1e5, NN_post = 1e5, thin_period=1e2):
         """ Perform the actual simulations """
@@ -427,7 +426,7 @@ class BayesRSL(BZ.bzBase):
 
     def save_data(self, arrs2save, HP, save_tag=0):
         import h5py, pickle
-        path_save = op.join(self.path_Brsl, 'bayes_model_solution')
+        path_save = op.join(self.path_Brsl, 'bayes_model_solutions')
         os.makedirs(path_save, exist_ok=True)
         dst_h5    = op.join(path_save, f'py_exp{save_tag}.h5')
         arrnames  = 'MU NU PI_2 DELTA_2 SIGMA_2 TAU_2 PHI B L R Y_O Y TGDATA N K D'.split()
@@ -450,18 +449,23 @@ class LoadTGs(BZ.bzBase):
 
     def __call__(self, overwrite=False):
         ## get station locations that are in bbox
-        dst = op.join(self.path_root, 'tg_distances.npy')
+        df_locs    = self.load_sta_ids()
+
+        ## get station timeseries after 1892; keep only ts with >= n_data pts
+        df_ts      = self.get_ts(df_locs, min_data=25)
+        df_ts      = df_ts[df_ts.index > 1892]
+        dst        = op.join(self.path_root, 'tg_distances.npy')
         if op.exists(dst) and not overwrite:
             self.log.debug('Using existing tg distances')
-            return np.load(dst)
+            df_dists = np.load(dst)
+        else:
+            ## get only lat/lon for stations with enough data
+            self.log.debug('Calculating distances between tgs')
+            df_locs  = self.df_locs[self.df_locs.index.isin(self.df_ts.columns)]
+            gdf_locs = bbGIS.df2gdf(df_locs)
+            df_dists = self.calc_distances(gdf_locs, dst)
+        return df_ts.T.to_numpy()*1e-3, df_dists
 
-        self.df_locs    = self.load_sta_ids()
-        ## get station timeseries, keep only time series with at least n_data pts
-        self.df_ts      = self.get_ts(min_data=25)
-        ## now get only lat/lon for stations with enough data
-        df_locs  = self.df_locs[self.df_locs.index.isin(self.df_ts.columns)]
-        gdf_locs = bbGIS.df2gdf(df_locs)
-        return self.calc_distances(gdf_locs, dst)
 
     def calc_distances(self, gdf_tgs, dst):
         """ Calculate distances between each TG, square matrix result """
@@ -479,11 +483,11 @@ class LoadTGs(BZ.bzBase):
         np.save(dst, arr_dists)
         return arr_dists
 
-    def get_ts(self, min_data=25):
+    def get_ts(self, df_locs, min_data=25):
         """ Too many years, but same number (also correct?) """
         from functools import reduce
         ## load the actual time series
-        tg_ids   = self.df_locs.index.values
+        tg_ids   = df_locs.index.values
 
         path_rlr = op.join(self.path_root, 'data')
         lst_src  = [op.join(path_rlr, f'{i}.rlrdata') for i in tg_ids]
@@ -513,15 +517,29 @@ class LoadTGs(BZ.bzBase):
         """ Load a single raw tide gauge from the rlrfiles and check for bad data """
         id     = op.splitext(op.basename(path))[0]
 
-        cols   = ['time', id, 'n_missing', 'flag']
-        df_tg  = pd.read_csv(path, delimiter=';', names=cols).set_index('time')
+        cols   = ['time', id, 'interpolated', 'flags']
+        dtype  = {'time' : int, id: int, 'interpolated': str, 'flags': str}
+
+        df_tg  = pd.read_csv(path, delimiter=';', names=cols, dtype=dtype).set_index('time').copy()
+        ## following the readAnnual.m program in PSMSL dl; first col is ignored
+        df_tg['isMtl']    = df_tg.flags.str[1]
+        df_tg['dataFlag'] = df_tg.flags.str[2]
+        df_tg.drop('flags', axis=1, inplace=True)
 
         ## some just randomly empty
         if df_tg.empty: return pd.DataFrame()
-        ## convert to nan
+
+        ## convert bad to nan; return empty if not enough data
         df_tg.where(df_tg[id] > -1e4, np.nan, inplace=True)
-        return df_tg[id] if df_tg[id].dropna().shape[0] > min_data else pd.DataFrame()
+        if df_tg[id].dropna().shape[0] <= min_data:
+            return pd.DataFrame()
+
+        ## check flagged data; do this here to not affect TG count
+        df_tg.where(df_tg['interpolated']=='N', np.nan, inplace=True)
+        df_tg.where(df_tg['dataFlag']=='0', np.nan, inplace=True)
+
+        return df_tg[id]
 
 if __name__ == '__main__':
     # LoadTGs()(True)
-    BayesRSL()() #(1e3, 1e3, 10) 
+    BayesRSL()() #(1e3, 1e3, 10)
