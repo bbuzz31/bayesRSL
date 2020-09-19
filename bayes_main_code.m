@@ -13,7 +13,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % function bayes_main_code(save_tag,NN_burn,NN_post,thin_period)
 % function bayes_main_code
-save_tag = 1;
+save_tag = 2;
 NN_burn  = 100000;
 NN_post  = 100000;
 thin_period = 100;
@@ -52,9 +52,9 @@ M=sum(sum(~isnan(DATA'))~=0); % number of locations with at least one datum
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Set the seeds of the random number generators
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% randn('state', sum((1000+600)*clock))
-% rand('state', sum((1000+800)*clock))
-rng(150);
+randn('state', sum((1000+600)*clock))
+rand('state', sum((1000+800)*clock))
+% rng(150);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Allocate space for the sample arrays
@@ -107,7 +107,7 @@ tic
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Loop through the Gibbs sampler with Metropolis step
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' iterations done.']), tic, end
+for nn=1:NN, if mod(nn,10000)==0, toc, disp([num2str(nn),' of ',num2str(NN),' iterations done.']), tic, end
     nn_thin=[]; nn_thin=ceil(nn/thin_period);
 
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -331,7 +331,6 @@ for nn=1:NN, if mod(nn,50)==0, toc, disp([num2str(nn),' of ',num2str(NN),' itera
     % Now update arrays
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     update_all_arrays
-
 end
 toc
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
