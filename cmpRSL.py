@@ -13,7 +13,7 @@ class cmpPyMat(BZ.bzBase):
         self.path_res = op.join(self.path_Brsl, 'bayes_model_solutions')
         self.arrnames = 'MU NU PI_2 DELTA_2 SIGMA_2 TAU_2 PHI B L R Y_O Y TGDATA N K D'.split()
         self.dct_arrs, self.dct_hp = self.load_py_res(save_tag)
-        self.dct_mat  = loadmat(op.join(self.path_res, f'experiment_{save_tag}'))
+        self.dct_mat  = loadmat(op.join(self.path_res, f'experiment_{save_tag+1}'))
         # self.cmp_y()
         self.cmp_parms()
 
@@ -118,8 +118,7 @@ class cmpPyMat(BZ.bzBase):
             print (f'Mat/Py {parm}: {med_mat:.2f}, {med_py:.2f}')
             med_pys.append(med_py); med_mats.append(med_mat)
 
-        BZ.print_all (self.dct_mat['R'])
-        return
+        # BZ.print_all (self.dct_mat['R'])
 
         fig, axes = plt.subplots(figsize=(16,9))
         axes.scatter(parms, med_pys, c='darkblue', label='python')
