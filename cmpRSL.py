@@ -13,9 +13,9 @@ class cmpPyMat(BZ.bzBase):
         self.path_res = op.join(self.path_Brsl, 'bayes_model_solutions')
         self.arrnames = 'MU NU PI_2 DELTA_2 SIGMA_2 TAU_2 PHI B L R Y_O Y TGDATA N K D'.split()
         self.dct_arrs, self.dct_hp = self.load_py_res(save_tag)
-        self.dct_mat  = loadmat(op.join(self.path_res, f'experiment_{save_tag+1}'))
-        # self.cmp_y()
-        self.cmp_parms()
+        self.dct_mat  = loadmat(op.join(self.path_res, f'experiment_{save_tag+2}'))
+        self.cmp_y()
+        # self.cmp_parms()
 
     def load_py_res(self, save_tag=0):
         dst_h5    = op.join(self.path_res, f'py_exp{save_tag}.h5')
@@ -58,8 +58,10 @@ class cmpPyMat(BZ.bzBase):
         return df, rates_all
 
     def cmp_y(self):
+        # import ipdb
         df_py_y, rates_py   = self.y_stats('py')
         df_mat_y, rates_mat = self.y_stats('mat')
+        # ipdb.set_trace()
 
         lbls  = ['python', 'matlab']
         fig, axes = plt.subplots(figsize=(16,9), nrows=3, sharex=True)
@@ -77,6 +79,15 @@ class cmpPyMat(BZ.bzBase):
                                                     bbox_to_anchor=(0.925, 1.18))
         fig.patch.set_alpha(0)
         fig.set_label('Y_Comparison_TG')
+
+        ## also create a property - property of the rates
+        fig, axes = plt.subplots(figsize=(16,9))
+        axes.scatter(df_mat_y.loc['avg'], df_py_y.loc['avg'], c='k')
+        axes.plot([0,1],[0,1], 'c--', transform=axes.transAxes) # 1 - 1
+        axes.set_xlabel('Matlab2016a')
+        axes.set_ylabel('Python3.8')
+        axes.set_title('RSL Comparison at each TG')
+        axes.set_label('Prop-Prop')
 
         ## also compare the hists
         c     = ['darkblue', 'darkgreen'] # to ensure consistency with prev
