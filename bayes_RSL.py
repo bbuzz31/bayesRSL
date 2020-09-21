@@ -20,6 +20,7 @@ def createParser():
                                      epilog='To create paper results:\n\t bayes_RSL.py --NN_burn 100000 --NN_post 100000 --thin 100'\
                                             '\n\tSee paper/supplementary material/matlab codes for complete details',
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--savetag', dest='savetag', default=0, help='Extension to append to output names')
     parser.add_argument('--NN_burn', dest='burn', default=1e6, help='Number of burn-in iterations')
     parser.add_argument('--NN_post', dest='post', default=1e6, help='Number of post-burn-in iterations')
     parser.add_argument('--thin', dest='thin', default=1e2, help='Number of iterations to thin by')
@@ -42,11 +43,11 @@ class BayesRSL(object):
     def __init__(self, seed=10):
         np.random.seed(seed)
         self.path_root       = op.dirname(op.realpath(__file__))
-        self.tg_data, self.D = LoadTGs(self.path_root)(False)
+        self.tg_data, self.D = LoadTGs(self.path_root)(True)
         self.N, self.K       = self.tg_data.shape
         self.M  = np.sum(~np.isnan(self.tg_data).all(1)) # of tgs with >0 datums
 
-    def __call__(self, NN_burn, NN_post, thin_period):
+    def __call__(self, save_tag, NN_burn, NN_post, thin_period):
         """ Perform the actual simulations; default values are those used in paper """
         #####################################################
         # Loop through the Gibbs sampler with Metropolis step
@@ -71,7 +72,7 @@ class BayesRSL(object):
         st, t_int = time.time(), time.time() # for logging
         NN    = NN_burn + NN_post
         for nn in np.arange(NN):
-            if nn % 100 == 0 and not nn == 0:
+            if nn % 10000 == 0 and nn > 0:
                 elap  = time.time() - t_int
                 print (f'{nn} of {NN} iterations in {elap:.2f} seconds')
                 t_int = time.time()
@@ -280,7 +281,7 @@ class BayesRSL(object):
         #############
         arrs2save = [self.MU, self.NU, self.PI_2, self.DELTA_2, self.SIGMA_2, self.TAU_2,
                      self.PHI, self.B, self.L, self.R, self.Y0, self.Y, self.tg_data, self.N, self.K, self.D]
-        self.save_data(arrs2save, HP, save_tag=0)
+        self.save_data(arrs2save, HP, save_tag=save_tag)
         return
 
     def set_hyperparms(self):
@@ -451,7 +452,7 @@ class BayesRSL(object):
         self.DELTA_2 = self.DELTA_2[NN_burn_thin:,:]
         self.TAU_2   = self.TAU_2[NN_burn_thin:,:]
 
-    def save_data(self, arrs2save, HP, save_tag=0):
+    def save_data(self, arrs2save, HP, save_tag):
         path_save = op.join(self.path_root, 'bayes_model_solutions')
         os.makedirs(path_save, exist_ok=True)
         dst_h5    = op.join(path_save, f'py_exp{save_tag}.h5')
@@ -468,12 +469,10 @@ class BayesRSL(object):
         print(f'Wrote results hyperparams to: {dst_dct}')
 
 class LoadTGs(object):
-    def __init__(self):
-        super().__init__(path_root)
+    def __init__(self, path_root):
         self.path_root  = op.join(path_root, 'rlr_annual')
-        self.path_flist = op.join(self.path_root, 'filelist.txt')
 
-    def __call__(self, overwrite=False):
+    def __call__(self, overwrite=True):
         ## get station locations that are in bbox
         df_locs    = self.load_sta_ids()
 
@@ -485,18 +484,16 @@ class LoadTGs(object):
             print('Using existing tg distances')
             df_dists = np.load(dst)
         else:
+            print('Calculating distance between TGs...')
             ## get only lat/lon for stations with enough data
-            print ('Calculating distances between tgs')
             df_locs  = df_locs[df_locs.index.isin(df_ts.columns)]
             gdf_locs = df2gdf(df_locs, 'lon', 'lat')
             df_dists = self.calc_distances(gdf_locs, dst)
         return df_ts.T.to_numpy()*1e-3, df_dists
 
-
     def calc_distances(self, gdf_tgs, dst):
         """ Calculate distances between each TG, square matrix result """
         distance.EARTH_RADIUS = 6378.137 # to match matlab
-        print('Calculating distance between TGs...')
 
         arr_dists = np.zeros([len(gdf_tgs), len(gdf_tgs)])
         for i, pt in enumerate(gdf_tgs.geometry):
@@ -509,8 +506,7 @@ class LoadTGs(object):
         return arr_dists
 
     def get_ts(self, df_locs, min_data=25):
-        """ Too many years, but same number (also correct?) """
-        ## load the actual time series
+        """ Load the actual time series """
         tg_ids   = df_locs.index.values
 
         path_rlr = op.join(self.path_root, 'data')
@@ -529,8 +525,9 @@ class LoadTGs(object):
 
     def load_sta_ids(self, SNWE=[35, 46.24, -80, -60]):
         """ So far only implenenting for distance calcs """
+        path_flist = op.join(self.path_root, 'filelist.txt')
         cols = ['ID', 'lat', 'lon', 'sta', 'ccode', 'scode', 'quality']
-        df   = pd.read_csv(self.path_flist, delimiter=';', names=cols, header=None).set_index('ID')
+        df   = pd.read_csv(path_flist, delimiter=';', names=cols, header=None).set_index('ID')
         ## get those on the east coast from PSMSL coastal code
         df   = df[df.ccode.isin(['960', '970'])].sort_values('lat')
         ## subset by bbox
@@ -566,4 +563,4 @@ class LoadTGs(object):
 
 if __name__ == '__main__':
     inps = cmdLineParse()
-    BayesRSL()(inps.burn, inps.post, inps.thin)
+    BayesRSL()(inps.savetag, inps.burn, inps.post, inps.thin)
