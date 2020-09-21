@@ -1,24 +1,53 @@
+#! /usr/bin/env python3
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+# Python implementation of bayes_main_code.m and supporting scripts
+# Author: Brett A. Buzzanga
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 import argparse
-import os, os.path as op
+import os, os.path as op, time
 import numpy as np, pandas as pd
-import BZ
-from BZ import bbTS, bbGIS
-from scipy.io import loadmat
+import h5py, pickle
+from functools import reduce
+
+from shapely.geometry import Point
+import geopandas as gpd
+from geopy import distance
 import spectrum
-import time
 
-class BayesRSL(BZ.bzBase):
-    def __init__(self):
-        super().__init__()
-        self.log.setLevel('DEBUG')
-        np.random.seed(10)
-        self.path_mdat = op.join(self.path_Brsl, 'shared_data')
-        self.tg_data, self.D = LoadTGs()(False)
-        self.N, self.K = self.tg_data.shape
-        self.M         = np.sum(~np.isnan(self.tg_data).all(1)) # # of tgs with >0 datums
+def createParser():
+    parser = argparse.ArgumentParser(description='Python implementation of bayes_main_code.m',
+                                     epilog='To create paper results:\n\t bayes_RSL.py --NN_burn 100000 --NN_post 100000 --thin 100'\
+                                            '\n\tSee paper/supplementary material/matlab codes for complete details',
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--NN_burn', dest='burn', default=1e6, help='Number of burn-in iterations')
+    parser.add_argument('--NN_post', dest='post', default=1e6, help='Number of post-burn-in iterations')
+    parser.add_argument('--thin', dest='thin', default=1e2, help='Number of iterations to thin by')
+    return parser
 
-    def __call__(self, NN_burn=1e5, NN_post = 1e5, thin_period=1e2):
-        """ Perform the actual simulations """
+def cmdLineParse(iargs=None):
+    parser = createParser()
+    inps = parser.parse_args(args=iargs)
+    return inps
+
+def df2gdf(df, lonc, latc, epsg=4326):
+    """
+    Convert the df to a geo dataframe
+    """
+    df['geom'] = df.apply(lambda df: Point((float(df[lonc]), float(df[latc]))), axis=1)
+    gdf    = gpd.GeoDataFrame(df, geometry='geom', crs=f'EPSG:{epsg}')
+    return gdf
+
+class BayesRSL(object):
+    def __init__(self, seed=10):
+        np.random.seed(seed)
+        self.path_root       = op.dirname(op.realpath(__file__))
+        self.tg_data, self.D = LoadTGs(self.path_root)(False)
+        self.N, self.K       = self.tg_data.shape
+        self.M  = np.sum(~np.isnan(self.tg_data).all(1)) # of tgs with >0 datums
+
+    def __call__(self, NN_burn, NN_post, thin_period):
+        """ Perform the actual simulations; default values are those used in paper """
         #####################################################
         # Loop through the Gibbs sampler with Metropolis step
         #####################################################
@@ -44,7 +73,7 @@ class BayesRSL(BZ.bzBase):
         for nn in np.arange(NN):
             if nn % 100 == 0 and not nn == 0:
                 elap  = time.time() - t_int
-                self.log.info('%s of %s iterations in %.2f seconds', nn, NN, elap)
+                print (f'{nn} of {NN} iterations in {elap:.2f} seconds')
                 t_int = time.time()
 
             nn_thin = int(np.floor(nn/thin_period))
@@ -369,8 +398,6 @@ class BayesRSL(BZ.bzBase):
                 tmp_f[m, tgs_with_data.index[m]] = 1
             dct_sel['H'].append(tmp_h)
             dct_sel['F'].append(tmp_f)
-            if not np.allclose(tmp_h, tmp_f):
-                self.log.warning('Tmp_H and tmp_F are not the same?')
             ## add an array of good values for each gauge
             dct_z[i] = tgs_with_data.values
         return dct_sel['H'], dct_sel['F'], dct_z
@@ -425,8 +452,7 @@ class BayesRSL(BZ.bzBase):
         self.TAU_2   = self.TAU_2[NN_burn_thin:,:]
 
     def save_data(self, arrs2save, HP, save_tag=0):
-        import h5py, pickle
-        path_save = op.join(self.path_Brsl, 'bayes_model_solutions')
+        path_save = op.join(self.path_root, 'bayes_model_solutions')
         os.makedirs(path_save, exist_ok=True)
         dst_h5    = op.join(path_save, f'py_exp{save_tag}.h5')
         arrnames  = 'MU NU PI_2 DELTA_2 SIGMA_2 TAU_2 PHI B L R Y_O Y TGDATA N K D'.split()
@@ -438,13 +464,13 @@ class BayesRSL(BZ.bzBase):
         with open(dst_dct, 'wb') as fh:
             pickle.dump(HP, fh)
 
-        self.log.info('Wrote result arrays to:%s', dst_h5)
-        self.log.info('Wrote results hyperparams to:%s', dst_dct)
+        print(f'Wrote result arrays to: {dst_h5}')
+        print(f'Wrote results hyperparams to: {dst_dct}')
 
-class LoadTGs(BZ.bzBase):
+class LoadTGs(object):
     def __init__(self):
-        super().__init__()
-        self.path_root  = op.join(self.path_Brsl, 'rlr_annual')
+        super().__init__(path_root)
+        self.path_root  = op.join(path_root, 'rlr_annual')
         self.path_flist = op.join(self.path_root, 'filelist.txt')
 
     def __call__(self, overwrite=False):
@@ -456,26 +482,25 @@ class LoadTGs(BZ.bzBase):
         df_ts      = df_ts[df_ts.index > 1892]
         dst        = op.join(self.path_root, 'tg_distances.npy')
         if op.exists(dst) and not overwrite:
-            self.log.debug('Using existing tg distances')
+            print('Using existing tg distances')
             df_dists = np.load(dst)
         else:
             ## get only lat/lon for stations with enough data
-            self.log.debug('Calculating distances between tgs')
-            df_locs  = self.df_locs[self.df_locs.index.isin(self.df_ts.columns)]
-            gdf_locs = bbGIS.df2gdf(df_locs)
+            print ('Calculating distances between tgs')
+            df_locs  = df_locs[df_locs.index.isin(df_ts.columns)]
+            gdf_locs = df2gdf(df_locs, 'lon', 'lat')
             df_dists = self.calc_distances(gdf_locs, dst)
         return df_ts.T.to_numpy()*1e-3, df_dists
 
 
     def calc_distances(self, gdf_tgs, dst):
         """ Calculate distances between each TG, square matrix result """
-        from geopy import distance
         distance.EARTH_RADIUS = 6378.137 # to match matlab
-        self.log.info('Calculating distance between TGs...')
+        print('Calculating distance between TGs...')
 
         arr_dists = np.zeros([len(gdf_tgs), len(gdf_tgs)])
         for i, pt in enumerate(gdf_tgs.geometry):
-            if i % 10 == 0: self.log.info('Processing points around TG %s of %s', i, gdf_tgs.shape[0])
+            if i % 10 == 0: print(f'Processing points around TG {i} of {gdf_tgs.shape[0]}')
             for j, pt2 in enumerate(gdf_tgs.geometry):
                 dist = distance.great_circle((pt.y, pt.x), (pt2.y, pt2.x)).km
                 arr_dists[i, j] = dist
@@ -485,7 +510,6 @@ class LoadTGs(BZ.bzBase):
 
     def get_ts(self, df_locs, min_data=25):
         """ Too many years, but same number (also correct?) """
-        from functools import reduce
         ## load the actual time series
         tg_ids   = df_locs.index.values
 
@@ -541,5 +565,5 @@ class LoadTGs(BZ.bzBase):
         return df_tg[id]
 
 if __name__ == '__main__':
-    # LoadTGs()(True)
-    BayesRSL()() #(1e3, 1e3, 10)
+    inps = cmdLineParse()
+    BayesRSL()(inps.burn, inps.post, inps.thin)
