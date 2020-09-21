@@ -15,7 +15,7 @@ class cmpPyMat(BZ.bzBase):
         self.dct_arrs, self.dct_hp = self.load_py_res(save_tag)
         self.dct_mat  = loadmat(op.join(self.path_res, f'experiment_{save_tag+2}'))
         self.cmp_y()
-        # self.cmp_parms()
+        self.cmp_parms()
         return
 
     def load_py_res(self, save_tag=0):
@@ -66,22 +66,8 @@ class cmpPyMat(BZ.bzBase):
 
         ## unnecessary
         lbls  = ['Python3.8', 'Matlab2016a']
-        # fig, axes = plt.subplots(figsize=(16,9), nrows=3, sharex=True)
-        # for i, ax in enumerate(axes.ravel()):
-        #     row = df_py_y.index[i]
-        #     for j, df in enumerate([df_py_y, df_mat_y]):
-        #         dat = df.loc[row] # this is a row of, eg. mean for each TG
-        #         ax.scatter(range(len(dat)), dat, label=lbls[j])
-        #         ax.set_ylabel(f'rate_{row} cm/yr')
-        # axes[-1].set_xlabel('Tide Gauge')
-        # axes[0].set_title('RSL Comparison between Matlab2016a and Python')
-        # h, l = axes[0].get_legend_handles_labels()
-        # leg  = axes[0].legend(h, l, frameon=True, ncol=2, shadow=True,
-        #                                             bbox_to_anchor=(0.925, 1.18))
-        # fig.patch.set_alpha(0)
-        # fig.set_label('Y_Comparison_TG')
 
-        ## also create a property - property of the rates
+        ## create a property - property of the rates
         fig, axes = plt.subplots(figsize=(16,9))
         axes.scatter(df_mat_y.loc['avg'], df_py_y.loc['avg'], c='k')
         axes.plot([0,1],[0,1], 'k--', transform=axes.transAxes) # 1 - 1
@@ -132,11 +118,6 @@ class cmpPyMat(BZ.bzBase):
             med_py, med_mat = meds.tolist()
             med_pys.append(med_py); med_mats.append(med_mat)
         df = pd.DataFrame([table, med_mats, med_pys], columns=parms, index=['S3', 'MAT', 'PY']).T
-
-        ## unneccessary
-        # fig, axes = plt.subplots(figsize=(16,9))
-        # axes.scatter(parms, med_pys, c='darkblue', label='python')
-        # axes.scatter(parms, med_mats, c='darkgreen', label='matlab')
 
         fig, axes = plt.subplots(figsize=(16,9))
         axes.scatter(med_mats, med_pys, c='k')
