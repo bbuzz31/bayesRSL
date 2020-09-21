@@ -16,6 +16,7 @@ class cmpPyMat(BZ.bzBase):
         self.dct_mat  = loadmat(op.join(self.path_res, f'experiment_{save_tag+2}'))
         self.cmp_y()
         # self.cmp_parms()
+        return
 
     def load_py_res(self, save_tag=0):
         dst_h5    = op.join(self.path_res, f'py_exp{save_tag}.h5')
@@ -34,6 +35,7 @@ class cmpPyMat(BZ.bzBase):
         return dct_arrs, dct_hp
 
     def y_stats(self, kind='py'):
+        """ Units converted to mm """
         if kind == 'py':
             y  = self.dct_arrs['Y'] # simulation x year x tide gauge
         elif kind == 'mat':
@@ -58,36 +60,36 @@ class cmpPyMat(BZ.bzBase):
         return df, rates_all
 
     def cmp_y(self):
-        # import ipdb
+        ## units are mm
         df_py_y, rates_py   = self.y_stats('py')
         df_mat_y, rates_mat = self.y_stats('mat')
-        # ipdb.set_trace()
 
-        lbls  = ['python', 'matlab']
-        fig, axes = plt.subplots(figsize=(16,9), nrows=3, sharex=True)
-        for i, ax in enumerate(axes.ravel()):
-            row = df_py_y.index[i]
-            for j, df in enumerate([df_py_y, df_mat_y]):
-                dat = df.loc[row] # this is a row of, eg. mean for each TG
-                ax.scatter(range(len(dat)), dat, label=lbls[j])
-                ax.set_ylabel(f'rate_{row} cm/yr')
-
-        axes[-1].set_xlabel('Tide Gauge')
-        axes[0].set_title('RSL Comparison between Matlab2016a and Python')
-        h, l = axes[0].get_legend_handles_labels()
-        leg  = axes[0].legend(h, l, frameon=True, ncol=2, shadow=True,
-                                                    bbox_to_anchor=(0.925, 1.18))
-        fig.patch.set_alpha(0)
-        fig.set_label('Y_Comparison_TG')
+        ## unnecessary
+        lbls  = ['Python3.8', 'Matlab2016a']
+        # fig, axes = plt.subplots(figsize=(16,9), nrows=3, sharex=True)
+        # for i, ax in enumerate(axes.ravel()):
+        #     row = df_py_y.index[i]
+        #     for j, df in enumerate([df_py_y, df_mat_y]):
+        #         dat = df.loc[row] # this is a row of, eg. mean for each TG
+        #         ax.scatter(range(len(dat)), dat, label=lbls[j])
+        #         ax.set_ylabel(f'rate_{row} cm/yr')
+        # axes[-1].set_xlabel('Tide Gauge')
+        # axes[0].set_title('RSL Comparison between Matlab2016a and Python')
+        # h, l = axes[0].get_legend_handles_labels()
+        # leg  = axes[0].legend(h, l, frameon=True, ncol=2, shadow=True,
+        #                                             bbox_to_anchor=(0.925, 1.18))
+        # fig.patch.set_alpha(0)
+        # fig.set_label('Y_Comparison_TG')
 
         ## also create a property - property of the rates
         fig, axes = plt.subplots(figsize=(16,9))
         axes.scatter(df_mat_y.loc['avg'], df_py_y.loc['avg'], c='k')
-        axes.plot([0,1],[0,1], 'c--', transform=axes.transAxes) # 1 - 1
-        axes.set_xlabel('Matlab2016a')
-        axes.set_ylabel('Python3.8')
+        axes.plot([0,1],[0,1], 'k--', transform=axes.transAxes) # 1 - 1
+        axes.xaxis.set_label_coords(0.275, -0.035)
+        axes.set_xlabel(f'{lbls[1]} (mm/yr)')
+        axes.set_ylabel(f'{lbls[0]} (mm/yr)')
         axes.set_title('RSL Comparison at each TG')
-        axes.set_label('Prop-Prop')
+        fig.set_label('Prop-Prop'); # fig.patch.set_alpha(0)
 
         ## also compare the hists
         c     = ['darkblue', 'darkgreen'] # to ensure consistency with prev
@@ -108,39 +110,42 @@ class cmpPyMat(BZ.bzBase):
         axe[-1].hist(rates_mat, color=c[1])
         axe[-1].hist(rates_py, color=c[0], alpha=0.8)
         axe[-1].set_title('Both')
-        axe[-1].set_xlabel('Rate (cm/yr)')
+        axe[-1].set_xlabel('Rate (mm/yr)')
         axe[0].set_ylabel('RSL Counts')
-        fig.set_label('Rate_Hists')
-        bbPlot.savefigs(self.path_res, True, True)#, **{'dpi':300, 'transparent':False})
+        fig.set_label('Rate_Hists'); #fig.patch.set_alpha(0)
+        # bbPlot.savefigs(self.path_res, True, True)#, **{'dpi':300, 'transparent':False})
         return
 
     def cmp_parms(self):
         """ Compare the solution parameters, also see Table S2 """
         med_pys, med_mats = [], []
         parms   = 'MU NU PHI PI_2 DELTA_2 SIGMA_2 TAU_2 R'.split()
+        # table   = [3.03e-3, 6.95, 0.71e-3, 0.58e-6, 6.91e-6, 28.19e-6, 53.62e-6, 0.71]
+        table   = [3.03, 6.95, 0.71, 0.58, 6.91, 28.19, 53.62, 0.71]
         ## blow up values for easier comparison / with Table S2
         for i, parm in enumerate(parms):
             meds  = np.array([np.median(self.dct_arrs[parm]), np.median(self.dct_mat[parm])])
             if i in [0, 2]:
                 meds *= 1e3
             elif i in list(range(3,7)):
-                meds  = meds * 1e6
+                meds  = np.sqrt(meds * 1e6)
             med_py, med_mat = meds.tolist()
-            print (f'Mat/Py {parm}: {med_mat:.2f}, {med_py:.2f}')
             med_pys.append(med_py); med_mats.append(med_mat)
+        df = pd.DataFrame([table, med_mats, med_pys], columns=parms, index=['S3', 'MAT', 'PY']).T
 
-        # BZ.print_all (self.dct_mat['R'])
+        ## unneccessary
+        # fig, axes = plt.subplots(figsize=(16,9))
+        # axes.scatter(parms, med_pys, c='darkblue', label='python')
+        # axes.scatter(parms, med_mats, c='darkgreen', label='matlab')
 
         fig, axes = plt.subplots(figsize=(16,9))
-        axes.scatter(parms, med_pys, c='darkblue', label='python')
-        axes.scatter(parms, med_mats, c='darkgreen', label='matlab')
+        axes.scatter(med_mats, med_pys, c='k')
+        axes.plot([0,1],[0,1], 'k--', transform=axes.transAxes) # 1 - 1
+        axes.set_xlabel('Matlab2016a')
+        axes.set_ylabel('Python3.8')
+        axes.set_title(f'Comparison for Parameters: {", ".join(parms)}')
+        BZ.print_all (df)
 
-        fig, axes = plt.subplots(figsize=(16,9))
-        axes.scatter(med_pys, med_mats)
-        axes.plot([0,1],[0,1], transform=axes.transAxes, linestyle='--') # 1 - 1
-        axes.set_xlabel('Python Value')
-        axes.set_ylabel('Matlab Value')
-        axes.set_title(f'Parameter Comparison for: {" ,".join(parms)}')
         return
 
 if __name__ == '__main__':
