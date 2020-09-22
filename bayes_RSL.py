@@ -21,8 +21,8 @@ def createParser():
                                             '\n\tSee paper/supplementary material/matlab codes for complete details',
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--savetag', dest='savetag', default=0, help='Extension to append to output names')
-    parser.add_argument('--NN_burn', dest='burn', default=1e6, help='Number of burn-in iterations')
-    parser.add_argument('--NN_post', dest='post', default=1e6, help='Number of post-burn-in iterations')
+    parser.add_argument('--NN_burn', dest='burn', default=1e5, help='Number of burn-in iterations')
+    parser.add_argument('--NN_post', dest='post', default=1e5, help='Number of post-burn-in iterations')
     parser.add_argument('--thin', dest='thin', default=1e2, help='Number of iterations to thin by')
     return parser
 
